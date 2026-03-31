@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 import asyncio
 
 VERSION_BOT = "4.0.2"
-
+# update
 # =========================
 # CONFIGURA ESTAS IDS
 # =========================
