@@ -2,6 +2,8 @@ import os
 import random
 import re
 import unicodedata
+import threading
+from flask import Flask
 from typing import Dict, List, Tuple, Any, Optional
 
 import discord
@@ -22,16 +24,30 @@ CANAL_ENCUESTAS_ID = 1488382310528188536
 # Canal donde el bot dejará registro de quién respondió cada encuesta
 CANAL_RESULTADOS_ENCUESTAS_ID = 1488382682831524041
 
-TOKEN = os.getenv("DISCORD_TOKEN", "")
+TOKEN = os.getenv("TOKEN")
 
 intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot activo"
+
 # =========================
 # UTILIDADES
 # =========================
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+def keep_alive():
+    thread = threading.Thread(target=run_web)
+    thread.start()
+    
 def normalizar(texto: str) -> str:
     texto = str(texto).lower().strip()
     texto = unicodedata.normalize("NFD", texto)
@@ -1777,4 +1793,5 @@ TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     raise ValueError("No se encontró el token del bot. Configura la variable de entorno TOKEN.")
 
+keep_alive()
 bot.run(TOKEN)
