@@ -7,6 +7,8 @@ from typing import Dict, List, Tuple, Any, Optional
 import discord
 from discord.ext import commands, tasks
 import asyncio
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 VERSION_BOT = "4.0.2"
 
@@ -1379,7 +1381,17 @@ async def cerrar_encuesta(message_id: int):
     embed.set_footer(text="Encuesta cerrada. Ya no se puede votar.")
 
     await mensaje.edit(embed=embed, view=EncuestaView(activa=False))
-    await canal.send(f"⏰ La encuesta del ejercicio **{encuesta['numero']}** terminó. La respuesta correcta era la **opción {correcta}**.")
+
+    total_votos = contar_votos_encuesta(encuesta)
+    if total_votos == 0:
+        print(
+            f"Encuesta {encuesta['numero']} cerrada sin votos. No se publica ni se avisa en foros/resultados."
+        )
+        return
+
+    await canal.send(
+        f"⏰ La encuesta del ejercicio **{encuesta['numero']}** terminó. La respuesta correcta era la **opción {correcta}**."
+    )
     await publicar_resultado_encuesta_en_destino(encuesta)
 
 
@@ -1471,9 +1483,12 @@ async def on_ready():
 @bot.command()
 @commands.has_permissions(manage_messages=True)
 async def limpiar(ctx, cantidad: int):
+    if cantidad <= 0:
+        await ctx.send("❌ Debes indicar un número mayor que 0.", delete_after=3)
+        return
+
     await ctx.channel.purge(limit=cantidad + 1)
     await ctx.send(f"🧹 Se eliminaron {cantidad} mensajes.", delete_after=3)
-
 
 @bot.command()
 async def hola(ctx):
@@ -1731,69 +1746,32 @@ async def resolver(ctx, *, respuesta: str):
         marcar_ejercicio_como_visto(ctx.author.id, datos["tema"], datos)
         limpiar_ejercicio_de_canal(ctx.channel.id, ctx.author.id)
 
-@bot.command()
-async def encuesta(ctx, tema: str = "secuencial"):
-    if CANAL_ENCUESTAS_ID == 0 or CANAL_RESULTADOS_ENCUESTAS_ID == 0:
-        await ctx.send(
-            "⚠️ Primero debes poner las IDs de `CANAL_ENCUESTAS_ID` y `CANAL_RESULTADOS_ENCUESTAS_ID` en el archivo.\n"
-            "Sí, el bot no puede leer tu mente. Todavía."
-        )
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"Bot activo")
+
+    def log_message(self, format, *args):
         return
 
-    if ctx.channel.id != CANAL_ENCUESTAS_ID:
-        await ctx.send("❌ Usa este comando en tu canal de **encuestas**.")
-        return
 
-    tema = normalizar(tema)
-    if tema == "ciclo":
-        tema = "ciclos"
-    if tema == "aleatorio":
-        tema = "azar"
+def iniciar_servidor_web():
+    port = int(os.getenv("PORT", "10000"))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    server.serve_forever()
 
-    if tema not in TEMAS_ENCUESTA_VALIDOS:
-        await ctx.send("❌ Ese tema no existe para encuestas. Usa `!encuestas_temas`.")
-        return
 
-    item = obtener_item_para_encuesta(tema)
-    opciones, correcta = crear_opciones_encuesta(item)
+def keep_alive():
+    hilo = threading.Thread(target=iniciar_servidor_web, daemon=True)
+    hilo.start()
 
-    embed = discord.Embed(
-        title=f"🗳️ Encuesta PSeInt | Ejercicio {item['numero']}",
-        description=item["enunciado"],
-        color=discord.Color.blurple(),
-    )
-    embed.add_field(name="📚 Tema", value=tema, inline=True)
-    embed.add_field(name="🧠 Título", value=item["titulo"], inline=False)
 
-    for i, opcion in enumerate(opciones, start=1):
-        embed.add_field(
-            name=f"💻 Opción {i}",
-            value=f"```pseint\n{opcion[:950]}\n```",
-            inline=False,
-        )
-
-    embed.add_field(
-        name="👥 Quiénes votaron",
-        value="**Opción 1:** 0 voto(s)\nNadie todavía\n\n**Opción 2:** 0 voto(s)\nNadie todavía\n\n**Opción 3:** 0 voto(s)\nNadie todavía",
-        inline=False,
-    )
-    embed.set_footer(text="Elige una opción con los botones. No podrás cambiarla después.")
-
-    mensaje = await ctx.send(embed=embed, view=EncuestaView())
-    encuesta_mensajes[mensaje.id] = {
-        "numero": item["numero"],
-        "titulo": item["titulo"],
-        "enunciado": item["enunciado"],
-        "tema": tema,
-        "opciones": opciones,
-        "correcta": correcta,
-        "votos": [[], [], []],
-        "nombres_por_opcion": [[], [], []],
-    }
-
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN", "")
 
 if not TOKEN:
-    raise ValueError("No se encontró el token del bot. Configura la variable de entorno TOKEN.")
+    raise ValueError("No se encontró el token del bot. Configura la variable de entorno DISCORD_TOKEN.")
 
+keep_alive()
 bot.run(TOKEN)
