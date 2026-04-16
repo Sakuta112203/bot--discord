@@ -2,8 +2,6 @@ import os
 import random
 import re
 import unicodedata
-import threading
-from flask import Flask
 from typing import Dict, List, Tuple, Any, Optional
 
 import discord
@@ -11,7 +9,7 @@ from discord.ext import commands, tasks
 import asyncio
 
 VERSION_BOT = "4.0.2"
-# update
+
 # =========================
 # CONFIGURA ESTAS IDS
 # =========================
@@ -24,30 +22,16 @@ CANAL_ENCUESTAS_ID = 1488382310528188536
 # Canal donde el bot dejará registro de quién respondió cada encuesta
 CANAL_RESULTADOS_ENCUESTAS_ID = 1488382682831524041
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN", "")
 
 intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Bot activo"
-
 # =========================
 # UTILIDADES
 # =========================
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-def keep_alive():
-    thread = threading.Thread(target=run_web)
-    thread.start()
-    
 def normalizar(texto: str) -> str:
     texto = str(texto).lower().strip()
     texto = unicodedata.normalize("NFD", texto)
@@ -1142,6 +1126,10 @@ async def registrar_log_encuesta(interaction: discord.Interaction, encuesta: Dic
         pass
 
 
+def contar_votos_encuesta(encuesta: Dict[str, Any]) -> int:
+    return sum(len(lista) for lista in encuesta.get("nombres_por_opcion", [[], [], []]))
+
+
 def construir_resumen_final_foro(encuesta: Dict[str, Any]) -> str:
     correcta = encuesta["correcta"]
     acertaron = encuesta["nombres_por_opcion"][correcta]
@@ -1176,6 +1164,13 @@ def construir_resumen_final_foro(encuesta: Dict[str, Any]) -> str:
 
 
 async def publicar_resultado_encuesta_en_destino(encuesta: Dict[str, Any]):
+    total_votos = contar_votos_encuesta(encuesta)
+    if total_votos == 0:
+        print(
+            f"Encuesta {encuesta['numero']} cerrada sin votos. No se publica en el canal de resultados."
+        )
+        return
+
     destino = bot.get_channel(CANAL_RESULTADOS_ENCUESTAS_ID)
     if destino is None:
         return
@@ -1793,5 +1788,4 @@ TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     raise ValueError("No se encontró el token del bot. Configura la variable de entorno TOKEN.")
 
-keep_alive()
 bot.run(TOKEN)
