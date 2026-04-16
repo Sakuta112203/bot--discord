@@ -1491,6 +1491,22 @@ async def limpiar(ctx, cantidad: int):
     await ctx.send(f"🧹 Se eliminaron {cantidad} mensajes.", delete_after=3)
 
 @bot.command()
+@commands.has_permissions(manage_channels=True)
+async def limpiar_foro(ctx):
+    foro = ctx.channel
+
+    if not isinstance(foro, discord.ForumChannel):
+        await ctx.send("❌ Este comando solo funciona en foros")
+        return
+
+    threads = foro.threads
+
+    for thread in threads:
+        await thread.delete()
+
+    await ctx.send("🧹 Foro limpiado")
+
+@bot.command()
 async def hola(ctx):
     await ctx.send("Hola po 😎 soy tu bot de pseudocódigo")
 
