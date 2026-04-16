@@ -1466,6 +1466,12 @@ async def on_ready():
     print(f"Ejercicios cargados: {total}")
     print("Vista persistente de encuestas registrada.")
     print("Loop de encuestas automáticas cada 5 horas iniciado.")
+    
+    @bot.command()
+@commands.has_permissions(manage_messages=True)
+async def limpiar(ctx, cantidad: int):
+    await ctx.channel.purge(limit=cantidad + 1)
+    await ctx.send(f"🧹 Se eliminaron {cantidad} mensajes.", delete_after=3)
 
 @bot.command()
 async def hola(ctx):
