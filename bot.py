@@ -1768,7 +1768,7 @@ def keep_alive():
     hilo.start()
 
 
-TOKEN = os.getenv("DISCORD_TOKEN", "")
+TOKEN = os.getenv("TOKEN")
 
 if not TOKEN:
     raise ValueError("No se encontró el token del bot. Configura la variable de entorno DISCORD_TOKEN.")
